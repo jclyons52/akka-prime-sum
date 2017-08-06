@@ -5,16 +5,14 @@ import akka.routing.{ActorRefRoutee, RoundRobinRoutingLogic, Router}
 
 object PrimeSum extends App {
   case class FindPrimeSum(limit: Int)
-  case class CheckPrime(n: Int)
   case class AddToSum(n: Int)
-  case class CreateChildren(n: Int)
 
   class PrimeSumActor extends Actor {
     private var number = 0
     private var responseCount = 0
     private var limit = 0
 
-    var router = {
+    private val router = {
       val routees = Vector.fill(4) {
         val r = context.actorOf(Props[PrimeCheckActor])
         context watch r
@@ -26,11 +24,11 @@ object PrimeSum extends App {
     def receive = {
       case FindPrimeSum(n) => requestPrimeChecks(n)
 
-      case AddToSum(n) => {
+      case AddToSum(n) =>
         addToTotal(n)
         incrementResponseCount()
         printIfFinished()
-      }
+
     }
 
     private def printIfFinished() = {
@@ -40,16 +38,12 @@ object PrimeSum extends App {
       }
     }
 
-    private def incrementResponseCount() = {
-      responseCount += 1
-    }
+    private def incrementResponseCount() = responseCount += 1
 
-    private def addToTotal(n: Int) = {
-      number += n
-    }
+    private def addToTotal(n: Int) = number += n
 
     private def requestPrimeChecks(n: Int) = {
-      this.limit = n
+      limit = n
       (1 to n).foreach(i => {
         router.route(CheckPrime(i), sender())
       })
@@ -57,41 +51,33 @@ object PrimeSum extends App {
     }
   }
 
+  case class CheckPrime(n: Int)
+
   class PrimeCheckActor extends Actor {
     def receive = {
-      case CheckPrime(n) => isPrime(n)
+      case CheckPrime(n) => runPrimeCheck(n)
     }
 
-    def isPrime(n: Int): Unit = {
-      if (n < 2) {
-        context.parent ! AddToSum(0)
-        return
-      }
-      if (n == 2) {
-        context.parent ! AddToSum(n)
-        return
-      }
-      if (n % 2 == 0) {
-        context.parent ! AddToSum(0)
-        return
-      }
+    private def runPrimeCheck(n: Int): Unit = {
+      context.parent ! AddToSum(getAmountToAdd(n))
+    }
+
+    private def getAmountToAdd(n: Int): Int = {
+      if (n < 2) return 0
+      if (n == 2) return 2
+      if (n % 2 == 0) return 0
 
       var i = 3
       while ({ i * i <= n }) {
-        if (n % i == 0){
-          context.parent ! AddToSum(0)
-          return
-        }
+        if (n % i == 0)return 0
         i += 2
       }
-      context.parent ! AddToSum(n)
+      n
     }
   }
 
   val system = ActorSystem("PrimeSumSystem")
   val actor = system.actorOf(Props[PrimeSumActor], "PrimeSumActor1")
 
-  actor ! FindPrimeSum(10000)
-
-  //  system.terminate()
+  actor ! FindPrimeSum(1000)
 }
